@@ -1,0 +1,5 @@
+{
+  "name": "Steel Vanguard",
+  "description": "A top-down 2D tank combat game with directional armor mechanics, inspired by War Thunder.",
+  "requestFramePermissions": []
+}
