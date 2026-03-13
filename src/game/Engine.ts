@@ -473,6 +473,25 @@ export class GameEngine {
                     unit.y += res.dy;
                 }
             }
+
+            // Crushed by tanks
+            let crushed = false;
+            const tanksToCheck = [this.player, ...this.enemies];
+            for (let tank of tanksToCheck) {
+                if (tank.health <= 0) continue;
+                let dist = Math.sqrt(Math.pow(tank.x - unit.x, 2) + Math.pow(tank.y - unit.y, 2));
+                if (dist < tank.radius + unit.radius) {
+                    crushed = true;
+                    break;
+                }
+            }
+
+            if (crushed) {
+                this.spawnExplosion(unit.x, unit.y, '#ef4444', 5);
+                this.infantry.splice(i, 1);
+                this.score += 10;
+                continue;
+            }
         }
 
         // --- Update Tanks ---
