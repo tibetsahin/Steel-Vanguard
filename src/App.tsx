@@ -1,13 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/Engine';
-import { Crosshair, ShieldAlert, Target } from 'lucide-react';
+import { Crosshair, ShieldAlert, Target, Trophy } from 'lucide-react';
+import { db } from './firebase';
+import { ref, push, onValue, query, orderByChild, limitToLast } from 'firebase/database';
 
 export default function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const engineRef = useRef<GameEngine | null>(null);
-    const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
+    const [gameState, setGameState] = useState<'login' | 'menu' | 'playing' | 'gameover'>('login');
     const [selectedTank, setSelectedTank] = useState<'light' | 'medium' | 'heavy'>('medium');
     const [uiState, setUiState] = useState({ health: 100, maxHealth: 100, reloadProgress: 1, score: 0, isPaused: false, ammo: 0, maxAmmo: 0 });
+    
+    const [playerName, setPlayerName] = useState('');
+    const [leaderboard, setLeaderboard] = useState<{name: string, score: number}[]>([]);
+
+    useEffect(() => {
+        const leaderboardRef = query(ref(db, 'leaderboard'), orderByChild('score'), limitToLast(10));
+        const unsubscribe = onValue(leaderboardRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const scores = Object.values(data) as { name: string, score: number }[];
+                scores.sort((a, b) => b.score - a.score);
+                setLeaderboard(scores);
+            } else {
+                setLeaderboard([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         if (gameState === 'playing' && canvasRef.current) {
@@ -16,6 +36,15 @@ export default function App() {
                 if (state.health <= 0) {
                     setGameState('gameover');
                     engine.stop();
+                    
+                    // Save score to Firebase
+                    if (state.score > 0) {
+                        push(ref(db, 'leaderboard'), {
+                            name: playerName.trim() || 'Anonymous Commander',
+                            score: state.score,
+                            timestamp: Date.now()
+                        });
+                    }
                 }
             });
             engineRef.current = engine;
@@ -93,11 +122,50 @@ export default function App() {
             )}
 
             {/* Menus */}
+            {gameState === 'login' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-neutral-900 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-800 to-neutral-950">
+                    <div className="text-center max-w-md w-full p-8 bg-black/40 rounded-3xl border border-white/10 backdrop-blur-md shadow-2xl">
+                        <ShieldAlert className="w-20 h-20 mx-auto text-emerald-500 mb-6" />
+                        <h1 className="text-4xl font-black uppercase tracking-tighter mb-2 text-white drop-shadow-lg">NormalWAR</h1>
+                        <p className="text-neutral-400 mb-8">Identify yourself, Commander.</p>
+
+                        <div className="mb-8">
+                            <input 
+                                type="text" 
+                                placeholder="Enter Commander Name" 
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && playerName.trim()) {
+                                        setGameState('menu');
+                                    }
+                                }}
+                                className="w-full bg-black/50 border-2 border-white/10 rounded-xl px-6 py-4 text-xl text-center text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                autoFocus
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                if (playerName.trim()) {
+                                    setGameState('menu');
+                                }
+                            }}
+                            disabled={!playerName.trim()}
+                            className={`w-full font-bold text-xl py-4 px-12 rounded-full transition-all shadow-[0_0_30px_rgba(5,150,105,0.3)] pointer-events-auto ${playerName.trim() ? 'bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-105 active:scale-95' : 'bg-neutral-700 text-neutral-500 cursor-not-allowed'}`}
+                        >
+                            ENTER COMMAND
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {gameState === 'menu' && (
                 <div className="absolute inset-0 flex items-center justify-center bg-neutral-900 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-800 to-neutral-950">
                     <div className="text-center max-w-2xl p-8">
                         <ShieldAlert className="w-24 h-24 mx-auto text-emerald-500 mb-6" />
-                        <h1 className="text-6xl font-black uppercase tracking-tighter mb-4 text-white drop-shadow-lg">Steel Vanguard</h1>
+                        <h1 className="text-6xl font-black uppercase tracking-tighter mb-2 text-white drop-shadow-lg">NormalWAR</h1>
+                        <p className="text-emerald-400 font-mono mb-6">Welcome, Commander {playerName}</p>
                         <p className="text-xl text-neutral-400 mb-8">Top-down armored warfare. Angle your hull to bounce shots, flank enemies for critical rear damage.</p>
 
                         <div className="grid grid-cols-2 gap-4 text-left bg-black/30 p-6 rounded-2xl mb-8 border border-white/5">
@@ -147,24 +215,65 @@ export default function App() {
 
                         <button
                             onClick={() => setGameState('playing')}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl py-4 px-12 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(5,150,105,0.3)] pointer-events-auto"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl py-4 px-12 rounded-full transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(5,150,105,0.3)] pointer-events-auto mb-8"
                         >
                             DEPLOY TO BATTLE
                         </button>
+
+                        {leaderboard.length > 0 && (
+                            <div className="bg-black/40 rounded-2xl p-6 border border-white/10">
+                                <div className="flex items-center justify-center gap-3 mb-4">
+                                    <Trophy className="text-yellow-400 w-6 h-6" />
+                                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Top Commanders</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {leaderboard.map((entry, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-black/30 px-4 py-2 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-neutral-500 font-mono w-4">{idx + 1}.</span>
+                                                <span className="font-bold text-neutral-200">{entry.name}</span>
+                                            </div>
+                                            <span className="font-mono text-emerald-400 font-bold">{entry.score}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
             {gameState === 'gameover' && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50">
-                    <div className="text-center">
+                    <div className="text-center max-w-md w-full">
                         <h2 className="text-6xl font-black uppercase tracking-tighter text-red-500 mb-4">Vehicle Destroyed</h2>
                         <p className="text-2xl text-neutral-300 mb-8">Final Score: <span className="text-emerald-400 font-mono font-bold">{uiState.score}</span></p>
+                        
+                        {leaderboard.length > 0 && (
+                            <div className="bg-black/40 rounded-2xl p-6 border border-white/10 mb-8 text-left">
+                                <div className="flex items-center justify-center gap-3 mb-4">
+                                    <Trophy className="text-yellow-400 w-6 h-6" />
+                                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Top Commanders</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {leaderboard.slice(0, 5).map((entry, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-black/30 px-4 py-2 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-neutral-500 font-mono w-4">{idx + 1}.</span>
+                                                <span className="font-bold text-neutral-200">{entry.name}</span>
+                                            </div>
+                                            <span className="font-mono text-emerald-400 font-bold">{entry.score}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <button
-                            onClick={() => setGameState('playing')}
+                            onClick={() => setGameState('menu')}
                             className="bg-white text-black font-bold text-xl py-4 px-12 rounded-full transition-all hover:scale-105 active:scale-95 pointer-events-auto"
                         >
-                            REDEPLOY
+                            BACK TO MENU
                         </button>
                     </div>
                 </div>

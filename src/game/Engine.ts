@@ -49,12 +49,13 @@ export type Obstacle = {
     x: number; y: number;
     w: number; h: number;
     type: 'building' | 'ruin' | 'wall' | 'tank_wreck';
+    color?: string;
 };
 
 export type Decoration = {
     x: number; y: number;
     size: number;
-    type: 'crater' | 'rubble';
+    type: 'crater' | 'rubble' | 'grass' | 'flower' | 'bush';
     rotation: number;
 };
 
@@ -197,6 +198,7 @@ export class GameEngine {
         this.decorations = [];
         
         // Add streets and blocks
+        const buildingColors = ['#a39b98', '#9ca3af', '#8f9ea3', '#a3a08f', '#92a390', '#9b8fa3', '#a38f95', '#c2c2c2', '#999999'];
         for (let i = 0; i < 50; i++) {
             const isHorizontal = Math.random() > 0.5;
             const x = Math.random() * 4000 - 2000;
@@ -206,17 +208,28 @@ export class GameEngine {
             
             this.obstacles.push({
                 x, y, w, h,
-                type: Math.random() > 0.3 ? 'ruin' : 'building'
+                type: Math.random() > 0.3 ? 'ruin' : 'building',
+                color: buildingColors[Math.floor(Math.random() * buildingColors.length)]
             });
         }
 
-        // Add decorations (craters and rubble)
-        for (let i = 0; i < 100; i++) {
+        // Add decorations (craters, rubble, grass, flowers, bushes)
+        for (let i = 0; i < 300; i++) {
+            const rand = Math.random();
+            let type: 'crater' | 'rubble' | 'grass' | 'flower' | 'bush';
+            let size = Math.random() * 40 + 10;
+            
+            if (rand < 0.1) type = 'crater';
+            else if (rand < 0.2) type = 'rubble';
+            else if (rand < 0.6) { type = 'grass'; size = Math.random() * 15 + 5; }
+            else if (rand < 0.8) { type = 'flower'; size = Math.random() * 8 + 4; }
+            else { type = 'bush'; size = Math.random() * 30 + 15; }
+
             this.decorations.push({
                 x: Math.random() * 5000 - 2500,
                 y: Math.random() * 5000 - 2500,
-                size: Math.random() * 40 + 10,
-                type: Math.random() > 0.4 ? 'rubble' : 'crater',
+                size: size,
+                type: type,
                 rotation: Math.random() * Math.PI * 2
             });
         }
@@ -905,8 +918,8 @@ export class GameEngine {
     }
 
     private draw() {
-        // Background - Cracked asphalt / concrete color
-        this.ctx.fillStyle = '#262626'; 
+        // Background - Muted/pale grass green
+        this.ctx.fillStyle = '#829071'; 
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         this.ctx.save();
@@ -924,28 +937,64 @@ export class GameEngine {
             this.ctx.rotate(dec.rotation);
             
             if (dec.type === 'crater') {
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                this.ctx.fillStyle = '#6b5c52'; // muted dirt color
                 this.ctx.beginPath();
                 this.ctx.ellipse(0, 0, dec.size, dec.size * 0.7, 0, 0, Math.PI * 2);
                 this.ctx.fill();
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-                this.ctx.stroke();
-            } else {
-                // Rubble
-                this.ctx.fillStyle = '#404040';
+                this.ctx.fillStyle = '#4a3f38'; // deeper muted dirt
+                this.ctx.beginPath();
+                this.ctx.ellipse(0, 0, dec.size * 0.6, dec.size * 0.4, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (dec.type === 'rubble') {
+                this.ctx.fillStyle = '#737373'; // neutral-500
                 for(let j=0; j<3; j++) {
-                    this.ctx.fillRect(Math.random()*dec.size - dec.size/2, Math.random()*dec.size - dec.size/2, 5, 5);
+                    this.ctx.fillRect(Math.random()*dec.size - dec.size/2, Math.random()*dec.size - dec.size/2, 6, 6);
                 }
+            } else if (dec.type === 'grass') {
+                this.ctx.strokeStyle = '#6b7a5d'; // muted green
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                for(let j=0; j<3; j++) {
+                    this.ctx.moveTo(Math.random()*dec.size - dec.size/2, Math.random()*dec.size - dec.size/2);
+                    this.ctx.lineTo(Math.random()*dec.size - dec.size/2, Math.random()*dec.size - dec.size/2 - 8);
+                }
+                this.ctx.stroke();
+            } else if (dec.type === 'flower') {
+                // Leaves
+                this.ctx.fillStyle = '#6b7a5d';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, dec.size * 0.8, 0, Math.PI * 2);
+                this.ctx.fill();
+                // Petals
+                const colors = ['#c48b8b', '#c4b78b', '#8b9fc4', '#b88bc4']; // pale red, yellow, blue, purple
+                this.ctx.fillStyle = colors[Math.floor(Math.abs(dec.x) % colors.length)];
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, dec.size * 0.5, 0, Math.PI * 2);
+                this.ctx.fill();
+                // Center
+                this.ctx.fillStyle = '#d1c9a3'; // pale yellow
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, dec.size * 0.2, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (dec.type === 'bush') {
+                this.ctx.fillStyle = '#4a5941'; // muted dark green
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, dec.size, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.fillStyle = '#57694c'; // muted medium green
+                this.ctx.beginPath();
+                this.ctx.arc(-dec.size*0.2, -dec.size*0.2, dec.size * 0.7, 0, Math.PI * 2);
+                this.ctx.fill();
             }
             this.ctx.restore();
         }
 
-        // Draw Grid (Subtle pavement lines)
+        // Draw Grid (Subtle grass lines)
         const gridSize = 200;
         const offsetX = -this.camera.x % gridSize;
         const offsetY = -this.camera.y % gridSize;
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-        this.ctx.lineWidth = 1;
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+        this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         for (let x = offsetX - gridSize; x < this.canvas.width + gridSize; x += gridSize) {
             this.ctx.moveTo(this.camera.x + x, this.camera.y); this.ctx.lineTo(this.camera.x + x, this.camera.y + this.canvas.height);
@@ -1141,11 +1190,15 @@ export class GameEngine {
             }
         } else {
             // Base structure
-            this.ctx.fillStyle = '#525252'; // Concrete gray
+            this.ctx.fillStyle = obs.color || '#525252'; // Use assigned color or fallback
             this.ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
             
+            // Roof details (make it look like a building top)
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            this.ctx.fillRect(obs.x + 10, obs.y + 10, obs.w - 20, obs.h - 20);
+
             // Ruin details (broken walls/windows)
-            this.ctx.strokeStyle = '#171717';
+            this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
             this.ctx.lineWidth = 2;
             
             // Draw some "rooms" or internal walls
@@ -1163,29 +1216,31 @@ export class GameEngine {
             }
             this.ctx.stroke();
 
-            // Broken edges (jagged look)
-            this.ctx.fillStyle = '#262626';
-            const seed = (obs.x + obs.y) % 100;
-            if (seed > 50) {
-                // Top jagged
-                this.ctx.beginPath();
-                this.ctx.moveTo(obs.x, obs.y);
-                this.ctx.lineTo(obs.x + obs.w * 0.3, obs.y + 10);
-                this.ctx.lineTo(obs.x + obs.w * 0.6, obs.y - 5);
-                this.ctx.lineTo(obs.x + obs.w, obs.y + 15);
-                this.ctx.lineTo(obs.x + obs.w, obs.y);
-                this.ctx.fill();
-            }
+            if (obs.type === 'ruin') {
+                // Broken edges (jagged look)
+                this.ctx.fillStyle = '#262626';
+                const seed = (obs.x + obs.y) % 100;
+                if (seed > 50) {
+                    // Top jagged
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(obs.x, obs.y);
+                    this.ctx.lineTo(obs.x + obs.w * 0.3, obs.y + 10);
+                    this.ctx.lineTo(obs.x + obs.w * 0.6, obs.y - 5);
+                    this.ctx.lineTo(obs.x + obs.w, obs.y + 15);
+                    this.ctx.lineTo(obs.x + obs.w, obs.y);
+                    this.ctx.fill();
+                }
 
-            // Rebar / Exposed metal
-            this.ctx.strokeStyle = '#737373';
-            this.ctx.lineWidth = 1;
-            this.ctx.beginPath();
-            this.ctx.moveTo(obs.x + obs.w, obs.y + 20);
-            this.ctx.lineTo(obs.x + obs.w + 10, obs.y + 15);
-            this.ctx.moveTo(obs.x + obs.w, obs.y + 30);
-            this.ctx.lineTo(obs.x + obs.w + 12, obs.y + 35);
-            this.ctx.stroke();
+                // Rebar / Exposed metal
+                this.ctx.strokeStyle = '#737373';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(obs.x + obs.w, obs.y + 20);
+                this.ctx.lineTo(obs.x + obs.w + 10, obs.y + 15);
+                this.ctx.moveTo(obs.x + obs.w, obs.y + 30);
+                this.ctx.lineTo(obs.x + obs.w + 12, obs.y + 35);
+                this.ctx.stroke();
+            }
         }
 
         this.ctx.restore();
