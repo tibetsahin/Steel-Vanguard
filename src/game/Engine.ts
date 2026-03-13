@@ -131,7 +131,7 @@ export class GameEngine {
 
     private score: number = 0;
     private spawnTimer: number = 0;
-    private itemSpawnTimer: number = 5.0;
+    private itemSpawnTimer: number = 3.0;
     private airplaneCooldown: number = 0;
     private airplaneMaxCooldown: number = 5.0;
 
@@ -352,14 +352,14 @@ export class GameEngine {
 
         // --- Item Spawning ---
         this.itemSpawnTimer -= dt;
-        if (this.itemSpawnTimer <= 0 && this.items.length < 12) {
-            this.itemSpawnTimer = 5.0;
+        if (this.itemSpawnTimer <= 0 && this.items.length < 20) {
+            this.itemSpawnTimer = 3.0;
             let angle = Math.random() * Math.PI * 2;
             let dist = Math.random() * 1000 + 500;
             let rand = Math.random();
             let type: 'repair' | 'speed' | 'ammo' = 'repair';
-            if (rand > 0.66) type = 'speed';
-            else if (rand > 0.33) type = 'ammo';
+            if (rand > 0.8) type = 'speed';
+            else if (rand > 0.6) type = 'ammo';
             
             this.items.push({
                 id: this.nextId++,
@@ -600,7 +600,36 @@ export class GameEngine {
                         
                         if (p.type === 'shell') {
                             // --- ARMOR MECHANICS (War Thunder style) ---
-                            let toImpact = new Vec2(p.x - tank.x, p.y - tank.y).normalize();
+                            let projectileVel = new Vec2(p.vx, p.vy).normalize();
+                            let normal = new Vec2(p.x - tank.x, p.y - tank.y).normalize();
+                            // Angle of incidence: cos(theta) = - (V dot N)
+                            let cosTheta = -(projectileVel.x * normal.x + projectileVel.y * normal.y);
+
+                            // Ricochet if angle > 45 degrees (cosTheta < 0.707)
+                            if (cosTheta < 0.707) {
+                                // Reflect velocity: R = V - 2(V dot N)N
+                                let dotVN = p.vx * normal.x + p.vy * normal.y;
+                                p.vx = p.vx - 2 * dotVN * normal.x;
+                                p.vy = p.vy - 2 * dotVN * normal.y;
+
+                                // Move out of tank to prevent immediate re-collision
+                                p.x += normal.x * 5;
+                                p.y += normal.y * 5;
+                                p.life = Math.min(p.life, 0.5);
+                                p.ownerId = -1; // Bounced shell can hit anyone
+
+                                this.spawnExplosion(p.x, p.y, '#fbbf24', 3); // sparks
+                                this.floatingTexts.push({
+                                    x: tank.x, y: tank.y - 30,
+                                    text: "RICOCHET",
+                                    life: 1.0, maxLife: 1.0,
+                                    color: "#a3a3a3"
+                                });
+                                break; // Skip damage, projectile continues moving
+                            }
+
+                            destroyed = true;
+                            let toImpact = normal;
                             let tankForward = new Vec2(Math.cos(tank.hullAngle), Math.sin(tank.hullAngle));
                             let dot = toImpact.x * tankForward.x + toImpact.y * tankForward.y;
 
@@ -609,8 +638,8 @@ export class GameEngine {
                             let color = "#fff";
 
                             if (dot > 0.6) {
-                                damageMult = 0.2; // Front armor bounces/resists
-                                hitText = "RICOCHET";
+                                damageMult = 0.2; // Front armor resists
+                                hitText = "NON-PENETRATION";
                                 color = "#a3a3a3";
                                 this.spawnExplosion(p.x, p.y, '#fbbf24', 3); // sparks
                             } else if (dot < -0.6) {
