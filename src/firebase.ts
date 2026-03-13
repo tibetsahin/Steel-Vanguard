@@ -1,19 +1,12 @@
-import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyDuKxGCf07iyAwf9ONSVtZZmP7olJW9lMg",
-  authDomain: "normalwartr.firebaseapp.com",
-  projectId: "normalwartr",
-  storageBucket: "normalwartr.firebasestorage.app",
-  messagingSenderId: "454225406087",
-  appId: "1:454225406087:web:2f5e6b9b13f67bb8143022",
-  measurementId: "G-NFM3XZ0MBF"
-};
-
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const googleProvider = new GoogleAuthProvider();
 
-// Initialize Realtime Database and get a reference to the service
-export const db = getDatabase(app);
+export { signInWithPopup, signOut, onAuthStateChanged, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, Timestamp };
+export type { User };

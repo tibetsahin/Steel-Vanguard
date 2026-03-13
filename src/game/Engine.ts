@@ -1,4 +1,5 @@
 import { Vec2, resolveCircleAABB, resolveCircleCircle, moveTowardsAngle } from './utils';
+import { AudioManager } from './AudioManager';
 
 export type Tank = {
     id: number;
@@ -103,6 +104,7 @@ export class GameEngine {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private onUpdateUI: (state: any) => void;
+    private onGameOver: (score: number) => void;
     private isRunning: boolean = false;
     private lastTime: number = 0;
     private animationFrameId: number = 0;
@@ -140,11 +142,12 @@ export class GameEngine {
 
     private camera = { x: 0, y: 0, shake: 0 };
 
-    constructor(canvas: HTMLCanvasElement, tankType: 'light' | 'medium' | 'heavy', onUpdateUI: (state: any) => void) {
+    constructor(canvas: HTMLCanvasElement, tankType: 'light' | 'medium' | 'heavy', onUpdateUI: (state: any) => void, onGameOver: (score: number) => void) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d')!;
         this.playerTankType = tankType;
         this.onUpdateUI = onUpdateUI;
+        this.onGameOver = onGameOver;
 
         this.camera.x = 0;
         this.camera.y = 0;
@@ -280,11 +283,13 @@ export class GameEngine {
         if (this.isRunning) return;
         this.isRunning = true;
         this.lastTime = performance.now();
+        AudioManager.getInstance().startEngine();
         this.loop(this.lastTime);
     }
 
     public stop() {
         this.isRunning = false;
+        AudioManager.getInstance().stopEngine();
         cancelAnimationFrame(this.animationFrameId);
         if ((this as any).cleanupInput) (this as any).cleanupInput();
     }
@@ -341,6 +346,7 @@ export class GameEngine {
         // Machine Gun
         this.machineGunTimer -= dt;
         if (this.isRightMouseDown && this.machineGunTimer <= 0) {
+            AudioManager.getInstance().play('mg', 0.2);
             this.fireMachineGun();
         }
 
@@ -385,6 +391,7 @@ export class GameEngine {
                 if (item.type === 'repair' && this.player.health < this.player.maxHealth) {
                     let healAmount = 30;
                     this.player.health = Math.min(this.player.maxHealth, this.player.health + healAmount);
+                    AudioManager.getInstance().play('pickup');
                     this.floatingTexts.push({
                         x: this.player.x, y: this.player.y - 30,
                         text: "+30 ARMOR",
@@ -394,6 +401,7 @@ export class GameEngine {
                     this.items.splice(i, 1);
                 } else if (item.type === 'speed') {
                     this.player.speedBuffTimer = 10.0;
+                    AudioManager.getInstance().play('pickup');
                     this.floatingTexts.push({
                         x: this.player.x, y: this.player.y - 30,
                         text: "SPEED BOOST",
@@ -404,6 +412,7 @@ export class GameEngine {
                 } else if (item.type === 'ammo' && this.player.ammo < this.player.maxAmmo) {
                     let ammoAmount = Math.ceil(this.player.maxAmmo * 0.5);
                     this.player.ammo = Math.min(this.player.maxAmmo, this.player.ammo + ammoAmount);
+                    AudioManager.getInstance().play('pickup');
                     this.floatingTexts.push({
                         x: this.player.x, y: this.player.y - 30,
                         text: `+${ammoAmount} AMMO`,
@@ -501,6 +510,7 @@ export class GameEngine {
 
             if (crushed) {
                 this.spawnExplosion(unit.x, unit.y, '#ef4444', 5);
+                AudioManager.getInstance().play('hit', 0.3);
                 this.infantry.splice(i, 1);
                 this.score += 10;
                 continue;
@@ -772,6 +782,7 @@ export class GameEngine {
             const enemy = this.enemies[i];
             if (enemy.health <= 0) {
                 this.spawnExplosion(enemy.x, enemy.y, '#ef4444', 30);
+                AudioManager.getInstance().play('explosion');
                 
                 // Leave wreckage
                 this.obstacles.push({
@@ -789,6 +800,7 @@ export class GameEngine {
 
         if (this.player.health <= 0 && this.isRunning) {
             this.spawnExplosion(this.player.x, this.player.y, '#ef4444', 50);
+            AudioManager.getInstance().play('explosion');
             
             // Leave wreckage for player too
             this.obstacles.push({
@@ -800,6 +812,7 @@ export class GameEngine {
             });
 
             this.isRunning = false;
+            this.onGameOver(this.score);
             this.forceUIUpdate();
         }
 
@@ -836,6 +849,7 @@ export class GameEngine {
     private fireProjectile(tank: Tank) {
         tank.reloadTimer = tank.reloadTime;
         tank.ammo--;
+        AudioManager.getInstance().play('shoot');
         let barrelLength = tank.radius + 15;
         let px = tank.x + Math.cos(tank.turretAngle) * barrelLength;
         let py = tank.y + Math.sin(tank.turretAngle) * barrelLength;
