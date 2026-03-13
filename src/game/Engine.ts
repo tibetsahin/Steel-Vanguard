@@ -48,7 +48,7 @@ export type Infantry = {
 export type Obstacle = {
     x: number; y: number;
     w: number; h: number;
-    type: 'building' | 'ruin' | 'wall';
+    type: 'building' | 'ruin' | 'wall' | 'tank_wreck';
 };
 
 export type Decoration = {
@@ -727,11 +727,38 @@ export class GameEngine {
 
         // --- Death Logic ---
         for (let i = this.enemies.length - 1; i >= 0; i--) {
-            if (this.enemies[i].health <= 0) {
-                this.spawnExplosion(this.enemies[i].x, this.enemies[i].y, '#ef4444', 30);
+            const enemy = this.enemies[i];
+            if (enemy.health <= 0) {
+                this.spawnExplosion(enemy.x, enemy.y, '#ef4444', 30);
+                
+                // Leave wreckage
+                this.obstacles.push({
+                    x: enemy.x - enemy.radius,
+                    y: enemy.y - enemy.radius,
+                    w: enemy.radius * 2,
+                    h: enemy.radius * 2,
+                    type: 'tank_wreck'
+                });
+
                 this.enemies.splice(i, 1);
                 this.score += 100;
             }
+        }
+
+        if (this.player.health <= 0 && this.isRunning) {
+            this.spawnExplosion(this.player.x, this.player.y, '#ef4444', 50);
+            
+            // Leave wreckage for player too
+            this.obstacles.push({
+                x: this.player.x - this.player.radius,
+                y: this.player.y - this.player.radius,
+                w: this.player.radius * 2,
+                h: this.player.radius * 2,
+                type: 'tank_wreck'
+            });
+
+            this.isRunning = false;
+            this.forceUIUpdate();
         }
 
         // --- UI Update ---
@@ -1078,52 +1105,88 @@ export class GameEngine {
     private drawRuin(obs: Obstacle) {
         this.ctx.save();
         
-        // Base structure
-        this.ctx.fillStyle = '#525252'; // Concrete gray
-        this.ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-        
-        // Ruin details (broken walls/windows)
-        this.ctx.strokeStyle = '#171717';
-        this.ctx.lineWidth = 2;
-        
-        // Draw some "rooms" or internal walls
-        this.ctx.beginPath();
-        if (obs.w > obs.h) {
-            for(let x = obs.x + 40; x < obs.x + obs.w; x += 60) {
-                this.ctx.moveTo(x, obs.y);
-                this.ctx.lineTo(x, obs.y + obs.h * 0.7);
+        if (obs.type === 'tank_wreck') {
+            // Draw a burnt-out tank
+            this.ctx.translate(obs.x + obs.w/2, obs.y + obs.h/2);
+            
+            // Hull
+            this.ctx.fillStyle = '#262626'; // Dark gray/black
+            this.ctx.fillRect(-obs.w/2, -obs.h/2, obs.w, obs.h);
+            
+            // Treads (damaged)
+            this.ctx.fillStyle = '#171717';
+            this.ctx.fillRect(-obs.w/2 - 2, -obs.h/2, 4, obs.h);
+            this.ctx.fillRect(obs.w/2 - 2, -obs.h/2, 4, obs.h);
+            
+            // Turret (burnt)
+            this.ctx.fillStyle = '#171717';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, obs.w/3, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Gun (broken)
+            this.ctx.strokeStyle = '#171717';
+            this.ctx.lineWidth = 4;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, 0);
+            this.ctx.lineTo(obs.w/2, obs.h/4);
+            this.ctx.stroke();
+            
+            // Smoke particles (static)
+            this.ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            for(let i=0; i<3; i++) {
+                this.ctx.beginPath();
+                this.ctx.arc(Math.random()*10-5, Math.random()*10-5, 5, 0, Math.PI*2);
+                this.ctx.fill();
             }
         } else {
-            for(let y = obs.y + 40; y < obs.y + obs.h; y += 60) {
-                this.ctx.moveTo(obs.x, y);
-                this.ctx.lineTo(obs.x + obs.w * 0.7, y);
-            }
-        }
-        this.ctx.stroke();
-
-        // Broken edges (jagged look)
-        this.ctx.fillStyle = '#262626';
-        const seed = (obs.x + obs.y) % 100;
-        if (seed > 50) {
-            // Top jagged
+            // Base structure
+            this.ctx.fillStyle = '#525252'; // Concrete gray
+            this.ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            
+            // Ruin details (broken walls/windows)
+            this.ctx.strokeStyle = '#171717';
+            this.ctx.lineWidth = 2;
+            
+            // Draw some "rooms" or internal walls
             this.ctx.beginPath();
-            this.ctx.moveTo(obs.x, obs.y);
-            this.ctx.lineTo(obs.x + obs.w * 0.3, obs.y + 10);
-            this.ctx.lineTo(obs.x + obs.w * 0.6, obs.y - 5);
-            this.ctx.lineTo(obs.x + obs.w, obs.y + 15);
-            this.ctx.lineTo(obs.x + obs.w, obs.y);
-            this.ctx.fill();
-        }
+            if (obs.w > obs.h) {
+                for(let x = obs.x + 40; x < obs.x + obs.w; x += 60) {
+                    this.ctx.moveTo(x, obs.y);
+                    this.ctx.lineTo(x, obs.y + obs.h * 0.7);
+                }
+            } else {
+                for(let y = obs.y + 40; y < obs.y + obs.h; y += 60) {
+                    this.ctx.moveTo(obs.x, y);
+                    this.ctx.lineTo(obs.x + obs.w * 0.7, y);
+                }
+            }
+            this.ctx.stroke();
 
-        // Rebar / Exposed metal
-        this.ctx.strokeStyle = '#737373';
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(obs.x + obs.w, obs.y + 20);
-        this.ctx.lineTo(obs.x + obs.w + 10, obs.y + 15);
-        this.ctx.moveTo(obs.x + obs.w, obs.y + 30);
-        this.ctx.lineTo(obs.x + obs.w + 12, obs.y + 35);
-        this.ctx.stroke();
+            // Broken edges (jagged look)
+            this.ctx.fillStyle = '#262626';
+            const seed = (obs.x + obs.y) % 100;
+            if (seed > 50) {
+                // Top jagged
+                this.ctx.beginPath();
+                this.ctx.moveTo(obs.x, obs.y);
+                this.ctx.lineTo(obs.x + obs.w * 0.3, obs.y + 10);
+                this.ctx.lineTo(obs.x + obs.w * 0.6, obs.y - 5);
+                this.ctx.lineTo(obs.x + obs.w, obs.y + 15);
+                this.ctx.lineTo(obs.x + obs.w, obs.y);
+                this.ctx.fill();
+            }
+
+            // Rebar / Exposed metal
+            this.ctx.strokeStyle = '#737373';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(obs.x + obs.w, obs.y + 20);
+            this.ctx.lineTo(obs.x + obs.w + 10, obs.y + 15);
+            this.ctx.moveTo(obs.x + obs.w, obs.y + 30);
+            this.ctx.lineTo(obs.x + obs.w + 12, obs.y + 35);
+            this.ctx.stroke();
+        }
 
         this.ctx.restore();
     }
