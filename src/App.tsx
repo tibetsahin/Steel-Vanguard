@@ -7,7 +7,7 @@ export default function App() {
     const engineRef = useRef<GameEngine | null>(null);
     const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover'>('menu');
     const [selectedTank, setSelectedTank] = useState<'light' | 'medium' | 'heavy'>('medium');
-    const [uiState, setUiState] = useState({ health: 100, maxHealth: 100, reloadProgress: 1, score: 0, isPaused: false });
+    const [uiState, setUiState] = useState({ health: 100, maxHealth: 100, reloadProgress: 1, score: 0, isPaused: false, ammo: 0, maxAmmo: 0 });
 
     useEffect(() => {
         if (gameState === 'playing' && canvasRef.current) {
@@ -66,7 +66,7 @@ export default function App() {
                         </div>
                     </div>
 
-                    <div className="flex justify-center mb-8">
+                    <div className="flex justify-center mb-8 gap-6">
                         <div className="bg-black/50 p-4 rounded-xl backdrop-blur-sm border border-white/10 flex items-center gap-4">
                             <Crosshair className={`w-6 h-6 ${uiState.reloadProgress >= 1 ? 'text-emerald-400' : 'text-orange-400 animate-pulse'}`} />
                             <div>
@@ -76,6 +76,15 @@ export default function App() {
                                         className="h-full bg-orange-500 transition-all duration-75"
                                         style={{ width: `${uiState.reloadProgress * 100}%` }}
                                     />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-black/50 p-4 rounded-xl backdrop-blur-sm border border-white/10 flex items-center gap-4">
+                            <div className="text-center">
+                                <div className="text-sm text-neutral-400 uppercase tracking-wider mb-1">Ammo</div>
+                                <div className={`text-3xl font-mono font-bold ${uiState.ammo > 0 ? 'text-amber-400' : 'text-red-500 animate-bounce'}`}>
+                                    {uiState.ammo} <span className="text-sm text-neutral-500">/ {uiState.maxAmmo}</span>
                                 </div>
                             </div>
                         </div>
